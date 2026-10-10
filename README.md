@@ -15,7 +15,7 @@ sudo apt install tmux jq libnotify-bin
 ## Installazione
 
 ```
-git clone <url> ~/ccm && ~/ccm/install.sh
+git clone https://github.com/davidecat/ccm.git ~/ccm && ~/ccm/install.sh
 ```
 
 `install.sh` si può rilanciare senza danni:
