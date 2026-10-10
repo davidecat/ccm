@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# ccm — Claude Code Manager: tutte le sessioni di Claude Code in un'unica
+# finestra tmux (socket dedicato "ccm"), con stato per sessione e notifiche.
+#
+#   ccm                      apre/riattacca la finestra delle sessioni
+#   ccm new [-n NOME] [DIR] [-- ARG_CLAUDE...]   nuova sessione (default: cartella corrente)
+#   ccm resume [DIR]         nuova scheda con il selettore di claude --resume
+#   ccm ls                   elenco sessioni con stato
+#   ccm open [FINESTRA]      apre gnome-terminal sulle sessioni (per scorciatoia/dock)
+#   ccm redraw               ridisegna tutti i Claude (lanciato da tmux dopo un ridimensionamento)
+#   ccm hook EVENTO          usato dagli hook di Claude Code (settings.json)
+#
+# Tasti dentro ccm: F2 lista · F3 nuova · F4 chiudi · F5/F6 precedente/successiva
+#                   F7 rinomina · click sulle schede in basso.
+
+# Lanciato da GNOME (Super+C, dock) il PATH non include ~/.local/bin, dove sta claude
+export PATH="$HOME/.local/bin:$PATH"
+
+SOCK=ccm
+SESS=claude
+CONF="$HOME/.config/ccm/tmux.conf"
+SELF="$(readlink -f "$0")"
+
+T() { tmux -L "$SOCK" -f "$CONF" "$@"; }
+has_session() { T has-session -t "=$SESS" 2>/dev/null; }
+in_ccm() { [[ -n $TMUX && ${TMUX%%,*} == */$SOCK ]]; }
+
+need_tmux() {
+  command -v tmux >/dev/null || { echo "ccm: tmux non installato (sudo apt install tmux)" >&2; exit 1; }
+}
+
+attach() {
+  local target=$1
+  [[ -n $target ]] && T select-window -t "$target" 2>/dev/null
+  if in_ccm; then
+    T choose-tree -Zw
+  else
+    # -d stacca gli altri client: la vecchia finestra si chiude, resta solo questa
+    exec tmux -L "$SOCK" -f "$CONF" attach -d -t "=$SESS"
+  fi
+}
+
+cmd_new() {
+  local name="" dir="$PWD" args=()
+  while (($#)); do
+    case $1 in
+      -n) name=$2; shift 2 ;;
+      --) shift; args=("$@"); break ;;
+      *) dir=$1; shift ;;
+    esac
+  done
+  dir=$(cd "$dir" 2>/dev/null && pwd) || { echo "ccm: cartella inesistente" >&2; exit 1; }
+  [[ -z $name ]] && name=$(basename "$dir")
+  [[ $dir == "$HOME" && $name == "$(basename "$HOME")" ]] && name="home"
+  local cmd="claude"
+  ((${#args[@]})) && cmd+=" $(printf '%q ' "${args[@]}")"
+  if has_session; then
+    T new-window -t "=$SESS:" -n "$name" -c "$dir" "$cmd"
+  else
+    T new-session -d -s "$SESS" -n "$name" -c "$dir" "$cmd"
+  fi
+  in_ccm || attach
+}
+
+cmd_ls() {
+  has_session || { echo "nessuna sessione ccm attiva"; return; }
+  T list-windows -t "=$SESS" -F '#I	#{?#{@cc_state},#{@cc_state},-}	#W	#{pane_current_path}' |
+    column -t -s $'\t' -N '#,STATO,NOME,CARTELLA'
+}
+
+cmd_open() {
+  if has_session; then
+    exec gnome-terminal --maximize --title "Claude" -- "$SELF" attach "$1"
+  else
+    exec gnome-terminal --maximize --title "Claude" -- "$SELF" new "$HOME"
+  fi
+}
+
+# Dopo un ridimensionamento il disegno di Claude può andare fuori sincrono:
+# appena il ridimensionamento si ferma (0,4 s) manda Ctrl+L (ridisegna) a ogni Claude.
+cmd_redraw() {
+  local tok=$RANDOM$RANDOM
+  T set -g @cc_resize "$tok"
+  sleep 0.4
+  [[ $(T show -gv @cc_resize) == "$tok" ]] || exit 0
+  T list-panes -s -t "=$SESS" -F '#{pane_id} #{pane_current_command}' |
+    while read -r id cmd; do [[ $cmd == claude ]] && T send-keys -t "$id" C-l; done
+}
+
+# Chiamato dagli hook di Claude Code; legge il JSON dell'evento su stdin.
+cmd_hook() {
+  local event=$1 input
+  input=$(cat)
+  in_ccm || exit 0
+  local pane=$TMUX_PANE state msg
+  case $event in
+    SessionStart)            state=idle ;;
+    UserPromptSubmit|PreToolUse) state=working ;;
+    Notification)            state=waiting
+                             msg=$(jq -r '.message // "Claude aspetta una risposta"' <<<"$input" 2>/dev/null) ;;
+    Stop)                    state=done; msg="Ha finito" ;;
+    SessionEnd)              state="" ;;
+    *) exit 0 ;;
+  esac
+  local prev
+  prev=$(tmux show -wqv -t "$pane" @cc_state 2>/dev/null)
+  [[ $prev == "$state" && $event != Notification ]] && exit 0
+  tmux set -w -t "$pane" @cc_state "$state" 2>/dev/null
+
+  [[ -z $msg ]] && exit 0
+  # Notifica solo se non stai già guardando quella scheda
+  local seen win name
+  read -r seen win name < <(tmux display -p -t "$pane" \
+    '#{&&:#{window_active},#{session_attached}} #{window_id} #W' 2>/dev/null)
+  [[ $event == Stop && $seen == 1 ]] && exit 0
+  setsid bash -c '
+    act=$(notify-send -a "Claude Code" -i utilities-terminal -A open=Apri --wait \
+          "Claude · $1" "$2" 2>/dev/null)
+    [[ $act == open ]] && "$3" open "$4"
+  ' _ "$name" "$msg" "$SELF" "$win" </dev/null &>/dev/null &
+  exit 0
+}
+
+case ${1:-} in
+  hook) shift; cmd_hook "$@" ;;
+  ""|attach) need_tmux; shift
+     if has_session; then attach "$1"; else cmd_new "$PWD"; fi ;;
+  new) need_tmux; shift; cmd_new "$@" ;;
+  resume) need_tmux; shift; cmd_new -n "resume" "${1:-$PWD}" -- --resume ;;
+  ls) need_tmux; cmd_ls ;;
+  redraw) cmd_redraw ;;
+  open) need_tmux; shift; cmd_open "$1" ;;
+  -h|--help|help) sed -n '2,14p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  *) echo "ccm: comando sconosciuto '$1' (ccm help)" >&2; exit 1 ;;
+esac
