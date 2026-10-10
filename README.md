@@ -66,3 +66,7 @@ Stato delle schede: **?** su giallo = aspetta una tua risposta · **◐** blu = 
 | `tmux.conf` | Aspetto, colori, tasti, hook di ridimensionamento |
 | `ccm.desktop` | Icona "Claude Sessioni" |
 | `install.sh` | Installazione |
+
+## Licenza
+
+MIT — vedi [LICENSE](LICENSE).
