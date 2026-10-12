@@ -5,6 +5,7 @@
 #   ccm                      apre/riattacca la finestra delle sessioni
 #   ccm new [-n NOME] [DIR] [-- ARG_CLAUDE...]   nuova sessione (default: cartella corrente)
 #   ccm resume [DIR]         nuova scheda con il selettore di claude --resume
+#                            (la scheda prende il titolo della sessione scelta)
 #   ccm ls                   elenco sessioni con stato
 #   ccm open [FINESTRA]      apre gnome-terminal sulle sessioni (per scorciatoia/dock)
 #   ccm redraw               ridisegna tutti i Claude (lanciato da tmux dopo un ridimensionamento)
@@ -91,6 +92,8 @@ cmd_redraw() {
 cmd_hook() {
   local event=$1 input
   input=$(cat)
+  # CCM_LOG=file nell'ambiente di claude: registra gli eventi ricevuti (debug)
+  [[ -n ${CCM_LOG:-} ]] && printf '%s %s\n' "$event" "$input" >>"$CCM_LOG"
   in_ccm || exit 0
   local pane=$TMUX_PANE state msg
   case $event in
@@ -102,6 +105,19 @@ cmd_hook() {
     SessionEnd)              state="" ;;
     *) exit 0 ;;
   esac
+  # Sessione ripresa (ccm resume, claude --resume, /resume): la scheda prende il titolo
+  # della sessione e lo segue (anche dopo /rename), finché non la rinomini a mano con F7.
+  if [[ $event == SessionStart || $event == UserPromptSubmit ]]; then
+    local title src auto
+    title=$(jq -r '.session_title // empty' <<<"$input" 2>/dev/null)
+    src=$(jq -r '.source // empty' <<<"$input" 2>/dev/null)
+    auto=$(tmux show -wqv -t "$pane" @cc_autoname 2>/dev/null)
+    [[ $src == resume && $auto != 0 ]] && auto=1 && tmux set -w -t "$pane" @cc_autoname 1
+    if [[ $auto == 1 && -n $title ]]; then
+      [[ $(tmux display -p -t "$pane" '#W') == "$title" ]] || tmux rename-window -t "$pane" "$title"
+    fi
+  fi
+
   local prev
   prev=$(tmux show -wqv -t "$pane" @cc_state 2>/dev/null)
   [[ $prev == "$state" && $event != Notification ]] && exit 0
@@ -130,6 +146,6 @@ case ${1:-} in
   ls) need_tmux; cmd_ls ;;
   redraw) cmd_redraw ;;
   open) need_tmux; shift; cmd_open "$1" ;;
-  -h|--help|help) sed -n '2,14p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  -h|--help|help) sed -n '2,15p' "$SELF" | sed 's/^# \{0,1\}//' ;;
   *) echo "ccm: comando sconosciuto '$1' (ccm help)" >&2; exit 1 ;;
 esac
