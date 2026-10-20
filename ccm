@@ -130,7 +130,7 @@ cmd_hook() {
     '#{&&:#{window_active},#{session_attached}} #{window_id} #W' 2>/dev/null)
   [[ $event == Stop && $seen == 1 ]] && exit 0
   setsid bash -c '
-    act=$(notify-send -a "Claude Code" -i utilities-terminal -A open=Apri --wait \
+    act=$(timeout 30m notify-send -a "Claude Code" -i utilities-terminal -A open=Apri --wait \
           "Claude · $1" "$2" 2>/dev/null)
     [[ $act == open ]] && "$3" open "$4"
   ' _ "$name" "$msg" "$SELF" "$win" </dev/null &>/dev/null &
