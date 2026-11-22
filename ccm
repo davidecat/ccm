@@ -5,6 +5,7 @@
 #   ccm                      apre/riattacca la finestra delle sessioni
 #   ccm new [-n NOME] [-c COMANDO] [DIR] [-- ARG_CLAUDE...]   nuova sessione (default: cartella corrente)
 #                            -c: comando da lanciare al posto di claude (default: $CCM_CLAUDE, poi "claude")
+#                            CCM_CLAUDE e CCM_FABLE si possono mettere in ~/.config/ccm/env
 #   ccm fable [DIR]          nuova sessione con $CCM_FABLE (default "claude-fable", es. account Anthropic)
 #   ccm resume [DIR]         nuova scheda con il selettore di claude --resume
 #                            (la scheda prende il titolo della sessione scelta)
@@ -22,6 +23,8 @@ export PATH="$HOME/.local/bin:$PATH"
 SOCK=ccm
 SESS=claude
 CONF="$HOME/.config/ccm/tmux.conf"
+# Impostazioni personali (es. CCM_CLAUDE=claude-liquid): valgono per ogni avvio di ccm, anche da F3/F8
+[[ -f $HOME/.config/ccm/env ]] && source "$HOME/.config/ccm/env"
 SELF="$(readlink -f "$0")"
 
 T() { tmux -L "$SOCK" -f "$CONF" "$@"; }
@@ -153,6 +156,6 @@ case ${1:-} in
   ls) need_tmux; cmd_ls ;;
   redraw) cmd_redraw ;;
   open) need_tmux; shift; cmd_open "$1" ;;
-  -h|--help|help) sed -n '2,17p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  -h|--help|help) sed -n '2,18p' "$SELF" | sed 's/^# \{0,1\}//' ;;
   *) echo "ccm: comando sconosciuto '$1' (ccm help)" >&2; exit 1 ;;
 esac

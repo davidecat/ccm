@@ -53,8 +53,15 @@ Dentro la finestra:
 
 ### Più configurazioni di Claude Code
 
-Il comando di ogni nuova sessione è `$CCM_CLAUDE` (default `claude`); `-c` lo cambia per una sola sessione. `ccm fable` e F8 usano `$CCM_FABLE` (default `claude-fable`). Per esempio, con `claude` puntato a modelli locali e un lanciatore per l'account Anthropic:
+Il comando di ogni nuova sessione (anche da F3) è `$CCM_CLAUDE` (default `claude`); `-c` lo cambia per una sola sessione. `ccm fable` e F8 usano `$CCM_FABLE` (default `claude-fable`). Le due variabili si possono mettere in `~/.config/ccm/env`, che ccm legge a ogni avvio:
 
+```
+# ~/.config/ccm/env
+CCM_CLAUDE=claude-liquid
+CCM_FABLE=claude-fable
+```
+
+Esempio di lanciatore per una seconda configurazione, con login e impostazioni separate:
 ```
 #!/bin/bash
 # ~/.local/bin/claude-fable
