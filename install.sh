@@ -2,7 +2,7 @@
 # Installa ccm per l'utente corrente. Si può rilanciare: ogni passo salta ciò che è già a posto.
 #   - ~/.local/bin/ccm e ~/.config/ccm/tmux.conf come link ai file di questo repository
 #   - icona "Claude Sessioni" in ~/.local/share/applications
-#   - hook di Claude Code in ~/.claude/settings.json (backup in settings.json.bak-ccm)
+#   - hook di Claude Code in ~/.claude/settings.json, o in $CLAUDE_CONFIG_DIR (backup in settings.json.bak-ccm)
 #   - scorciatoia GNOME Super+C
 set -euo pipefail
 
@@ -28,7 +28,7 @@ cp "$REPO/ccm.desktop" "$HOME/.local/share/applications/ccm.desktop"
 echo "  icona Claude Sessioni installata"
 
 echo "Hook di Claude Code:"
-SETTINGS="$HOME/.claude/settings.json"
+SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"  # con CLAUDE_CONFIG_DIR: hook in quella configurazione
 mkdir -p "$(dirname "$SETTINGS")"
 [[ -f $SETTINGS ]] || echo '{}' >"$SETTINGS"
 events_json=$(printf '%s\n' "${EVENTS[@]}" | jq -R . | jq -s .)

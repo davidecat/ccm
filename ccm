@@ -3,7 +3,9 @@
 # finestra tmux (socket dedicato "ccm"), con stato per sessione e notifiche.
 #
 #   ccm                      apre/riattacca la finestra delle sessioni
-#   ccm new [-n NOME] [DIR] [-- ARG_CLAUDE...]   nuova sessione (default: cartella corrente)
+#   ccm new [-n NOME] [-c COMANDO] [DIR] [-- ARG_CLAUDE...]   nuova sessione (default: cartella corrente)
+#                            -c: comando da lanciare al posto di claude (default: $CCM_CLAUDE, poi "claude")
+#   ccm fable [DIR]          nuova sessione con $CCM_FABLE (default "claude-fable", es. account Anthropic)
 #   ccm resume [DIR]         nuova scheda con il selettore di claude --resume
 #                            (la scheda prende il titolo della sessione scelta)
 #   ccm ls                   elenco sessioni con stato
@@ -12,7 +14,7 @@
 #   ccm hook EVENTO          usato dagli hook di Claude Code (settings.json)
 #
 # Tasti dentro ccm: F2 lista · F3 nuova · F4 chiudi · F5/F6 precedente/successiva
-#                   F7 rinomina · click sulle schede in basso.
+#                   F7 rinomina · F8 nuova con $CCM_FABLE · click sulle schede in basso.
 
 # Lanciato da GNOME (Super+C, dock) il PATH non include ~/.local/bin, dove sta claude
 export PATH="$HOME/.local/bin:$PATH"
@@ -42,10 +44,11 @@ attach() {
 }
 
 cmd_new() {
-  local name="" dir="$PWD" args=()
+  local name="" dir="$PWD" args=() cmd="${CCM_CLAUDE:-claude}"
   while (($#)); do
     case $1 in
       -n) name=$2; shift 2 ;;
+      -c) cmd=$2; shift 2 ;;
       --) shift; args=("$@"); break ;;
       *) dir=$1; shift ;;
     esac
@@ -53,7 +56,8 @@ cmd_new() {
   dir=$(cd "$dir" 2>/dev/null && pwd) || { echo "ccm: cartella inesistente" >&2; exit 1; }
   [[ -z $name ]] && name=$(basename "$dir")
   [[ $dir == "$HOME" && $name == "$(basename "$HOME")" ]] && name="home"
-  local cmd="claude"
+  command -v "$cmd" >/dev/null || { echo "ccm: comando '$cmd' non trovato" >&2; exit 1; }
+  cmd=$(printf '%q' "$cmd")
   ((${#args[@]})) && cmd+=" $(printf '%q ' "${args[@]}")"
   if has_session; then
     T new-window -t "=$SESS:" -n "$name" -c "$dir" "$cmd"
@@ -143,9 +147,12 @@ case ${1:-} in
      if has_session; then attach "$1"; else cmd_new "$PWD"; fi ;;
   new) need_tmux; shift; cmd_new "$@" ;;
   resume) need_tmux; shift; cmd_new -n "resume" "${1:-$PWD}" -- --resume ;;
+  fable) need_tmux; shift
+     d="${1:-$PWD}"; n=$(basename "$(cd "$d" 2>/dev/null && pwd || echo "$d")")
+     cmd_new -n "fable:$n" -c "${CCM_FABLE:-claude-fable}" "$d" ;;
   ls) need_tmux; cmd_ls ;;
   redraw) cmd_redraw ;;
   open) need_tmux; shift; cmd_open "$1" ;;
-  -h|--help|help) sed -n '2,15p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  -h|--help|help) sed -n '2,17p' "$SELF" | sed 's/^# \{0,1\}//' ;;
   *) echo "ccm: comando sconosciuto '$1' (ccm help)" >&2; exit 1 ;;
 esac
