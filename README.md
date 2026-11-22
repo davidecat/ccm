@@ -31,7 +31,8 @@ git clone https://github.com/davidecat/ccm.git ~/ccm && ~/ccm/install.sh
 | --- | --- |
 | Super+C / icona "Claude Sessioni" | Apre la finestra delle sessioni |
 | `ccm` | Come sopra, da terminale (dentro ccm: lista delle sessioni) |
-| `ccm new [-n NOME] [DIR] [-- ARGOMENTI_CLAUDE]` | Nuova sessione (default: cartella corrente) |
+| `ccm new [-n NOME] [-c COMANDO] [DIR] [-- ARGOMENTI_CLAUDE]` | Nuova sessione (default: cartella corrente). `-c` lancia un altro comando al posto di `claude` |
+| `ccm fable [DIR]` | Nuova sessione con il comando alternativo `$CCM_FABLE` (default `claude-fable`), scheda `fable:CARTELLA` |
 | `ccm resume [DIR]` | Nuova scheda con l'elenco delle conversazioni da riprendere; la scheda prende il titolo della sessione scelta |
 | `ccm ls` | Elenco delle sessioni con stato |
 | `ccm help` | Tutti i comandi |
@@ -45,9 +46,23 @@ Dentro la finestra:
 | F4 | Chiude la sessione corrente |
 | F5 / F6 | Scheda precedente / successiva |
 | F7 | Rinomina la scheda (da quel momento il nome non cambia più da solo) |
+| F8 | Nuova sessione con `$CCM_FABLE` nella cartella corrente |
 | Ctrl+L | Ridisegna Claude se il testo appare spezzato |
 | Click sulle schede | Cambia sessione |
 | Shift + trascinare | Selezione normale del terminale |
+
+### Più configurazioni di Claude Code
+
+Il comando di ogni nuova sessione è `$CCM_CLAUDE` (default `claude`); `-c` lo cambia per una sola sessione. `ccm fable` e F8 usano `$CCM_FABLE` (default `claude-fable`). Per esempio, con `claude` puntato a modelli locali e un lanciatore per l'account Anthropic:
+
+```
+#!/bin/bash
+# ~/.local/bin/claude-fable
+export CLAUDE_CONFIG_DIR="$HOME/.claude-fable"   # login e impostazioni separate
+exec "$HOME/.local/bin/claude" "$@"
+```
+
+Il lanciatore deve finire con `exec claude`, così il ridisegno dopo un ridimensionamento lo riconosce. Gli hook di ccm vanno messi anche nel `settings.json` di quella configurazione (`CLAUDE_CONFIG_DIR=~/.claude-fable ~/ccm/install.sh`).
 
 Stato delle schede: **?** su giallo = aspetta una tua risposta · **◐** blu = sta lavorando · **✔** verde = ha finito.
 
